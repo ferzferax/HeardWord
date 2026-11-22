@@ -1,0 +1,7 @@
+{
+  "format": "heardword-sound-pack/v1",
+  "repository": "https://github.com/ferzferax/HeardWord",
+  "description": "Community-curated acoustic neural signatures (521-dimensional YAMNet probability embeddings). No raw audio is stored here.",
+  "updated_at": "2026-11-22",
+  "custom_sounds": []
+}

@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420">
+  <defs>
+    <linearGradient id="hwBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090C14" />
+      <stop offset="55%" stop-color="#11172A" />
+      <stop offset="100%" stop-color="#0D1117" />
+    </linearGradient>
+    <radialGradient id="hwGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#A855F7" stop-opacity="0.28" />
+      <stop offset="55%" stop-color="#38BDF8" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#090C14" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="hwLine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4ADE80" />
+      <stop offset="50%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#A855F7" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="420" rx="20" fill="url(#hwBg)" />
+  <rect x="2" y="2" width="1196" height="416" rx="19" fill="none" stroke="#1F2937" stroke-width="2" />
+
+  <circle cx="955" cy="210" r="210" fill="url(#hwGlow)" />
+
+  <!-- Acoustic Neural Pulse Emblem on the right -->
+  <g transform="translate(955, 205)">
+    <circle cx="0" cy="0" r="126" fill="#0D1322" stroke="#38BDF8" stroke-opacity="0.35" stroke-width="2" />
+    <circle cx="0" cy="0" r="96" fill="none" stroke="#A855F7" stroke-opacity="0.3" stroke-width="1.5" />
+
+    <!-- Outer arcs -->
+    <path d="M-78,-36 C-92,-12 -92,12 -78,36" fill="none" stroke="#38BDF8" stroke-width="4" stroke-linecap="round" stroke-opacity="0.65" />
+    <path d="M78,-36 C92,-12 92,12 78,36" fill="none" stroke="#A855F7" stroke-width="4" stroke-linecap="round" stroke-opacity="0.65" />
+
+    <!-- Harmonic waveform bars -->
+    <rect x="-54" y="-26" width="12" height="52" rx="6" fill="#38BDF8" />
+    <rect x="-31" y="-56" width="12" height="112" rx="6" fill="#4ADE80" />
+    <rect x="-6" y="-34" width="12" height="68" rx="6" fill="#A855F7" />
+    <rect x="19" y="-56" width="12" height="112" rx="6" fill="#38BDF8" />
+    <rect x="42" y="-26" width="12" height="52" rx="6" fill="#818CF8" />
+
+    <!-- Nodes -->
+    <circle cx="-25" cy="-72" r="5" fill="#4ADE80" />
+    <circle cx="25" cy="72" r="5" fill="#38BDF8" />
+  </g>
+
+  <!-- Title & Badges on left -->
+  <rect x="64" y="68" width="290" height="30" rx="15" fill="#161B22" stroke="#A855F7" stroke-opacity="0.6" />
+  <text x="209" y="88" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" font-weight="bold" fill="#D8B4FE">EARLY ALPHA • COMMUNITY SOUND VAULT</text>
+
+  <text x="64" y="166" font-family="Segoe UI, Arial, sans-serif" font-size="64" font-weight="800" fill="#FFFFFF">HeardWord</text>
+  <rect x="64" y="184" width="380" height="4" rx="2" fill="url(#hwLine)" />
+
+  <text x="64" y="226" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#CBD5E1">
+    Real-Time Neural Audio Monitor, 16-Band FFT &amp; Custom Sound Studio
+  </text>
+  <text x="64" y="258" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#94A3B8">
+    521 YAMNet Classes (EN / PT-BR) • On-Device Learning • GitHub Sound Sharing
+  </text>
+
+  <g transform="translate(64, 294)">
+    <rect x="0" y="0" width="145" height="34" rx="8" fill="#161B22" stroke="#30363D" />
+    <text x="72" y="22" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#4ADE80">On-Device TFLite</text>
+
+    <rect x="159" y="0" width="155" height="34" rx="8" fill="#161B22" stroke="#30363D" />
+    <text x="236" y="22" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#38BDF8">EN / PT-BR Toggle</text>
+
+    <rect x="328" y="0" width="185" height="34" rx="8" fill="#161B22" stroke="#30363D" />
+    <text x="420" y="22" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#D8B4FE">GitHub Sound Vault</text>
+
+    <rect x="527" y="0" width="145" height="34" rx="8" fill="#161B22" stroke="#30363D" />
+    <text x="599" y="22" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#FBBF24">16-Band FFT</text>
+  </g>
+
+  <text x="64" y="376" font-family="Segoe UI, Arial, sans-serif" font-size="14" fill="#64748B">
+    Created by @ferzferax • github.com/ferzferax/HeardWord
+  </text>
+</svg>
