@@ -19,13 +19,22 @@ object AudioProcessor {
         val n = pcm.size
         if (n == 0) return Pair(AcousticMetrics(), FloatArray(0))
 
+        val rawFloats = FloatArray(n)
+        var sum = 0.0
+        for (i in 0 until n) {
+            val s = pcm[i].toFloat() / 32768.0f
+            rawFloats[i] = s
+            sum += s.toDouble()
+        }
+        val dcOffset = (sum / n).toFloat()
+
         val floats = FloatArray(n)
         var sumSquares = 0.0
         var maxPeak = 0.0f
 
-        // Conversão direta de 16-bit PCM sem filtros agressivos
+        // Remoção de DC offset sem amplificar ruído térmico em ambientes silenciosos
         for (i in 0 until n) {
-            val s = pcm[i].toFloat() / 32768.0f
+            val s = (rawFloats[i] - dcOffset).coerceIn(-1.0f, 1.0f)
             floats[i] = s
             val absVal = abs(s)
             if (absVal > maxPeak) maxPeak = absVal
@@ -37,11 +46,11 @@ object AudioProcessor {
         val peakDb = 20.0f * log10(max(maxPeak, EPSILON))
         val crestFactor = if (rawRms > EPSILON) maxPeak / rawRms else 1.0f
 
-        // Pré-ganho adaptativo suave para o YAMNet (ajuda vozes baixas e estalos)
-        val boosted = FloatArray(n)
-        val gain = if (rawRms < 0.08f) 2.5f else 1.0f
+        // Ganho suave apenas acima do piso de ruído térmico (~ -35 dBFS = 0.018f RMS)
+        val conditioned = FloatArray(n)
+        val gain = if (rawRms in 0.018f..0.12f) 1.35f else 1.0f
         for (i in 0 until n) {
-            boosted[i] = (floats[i] * gain).coerceIn(-1.0f, 1.0f)
+            conditioned[i] = (floats[i] * gain).coerceIn(-1.0f, 1.0f)
         }
 
         // Análise de FFT real para espectro de 16 bandas e métricas espectrais
@@ -59,7 +68,7 @@ object AudioProcessor {
             spectrum = spectrum
         )
 
-        return Pair(metrics, boosted)
+        return Pair(metrics, conditioned)
     }
 
     private data class SpectrumAnalysis(

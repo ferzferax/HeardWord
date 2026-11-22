@@ -32,27 +32,29 @@ Originally split out from a multi-sensor prototype, HeardWord focuses strictly o
 
 ```mermaid
 flowchart LR
-    A["Device Mic<br/>(16 kHz UNPROCESSED / PCM)"] --> B["FFT Radix-2<br/>16-Band Spectrum & dBFS"]
-    A --> C["YAMNet TFLite<br/>(521 Classes • EN / PT-BR)"]
+    A["Device Mic<br/>(16 kHz VOICE_RECOGNITION / PCM)"] --> B["DC Offset Removal +<br/>FFT Radix-2 & dBFS Gate"]
+    B --> C["YAMNet TFLite<br/>(521 Classes • EN / PT-BR)<br/>+ EMA & Hallucination Filter"]
     C --> D["Monitor UI & Visual Alerts<br/>+ Rolling History"]
-    C --> E["Acoustic Learning Studio<br/>(521-Float Neural Embedding)"]
+    C --> E["Acoustic Learning Studio<br/>(Peak-Window 521-Float Embedding)"]
     E -->|Submit Sound Pack| F["GitHub Community Sound Vault<br/>(community_sound_vault.json)"]
     F -->|1-Tap Sync Vault| E
 ```
 
 ---
 
-## ✨ Key Features (`v0.1.0-alpha`)
+## ✨ Key Features (`v0.2.0-alpha`)
 
-- **Real-Time Neural Classification (521 Classes):** On-device TensorFlow Lite inference (`yamnet.tflite`) with descending confidence ranking and critical sound detection (sirens, alarms, glass shatter, dog barking, speech, impacts).
+- **Dual Acoustic & Neural Noise Gate:** Strict `dBFS` threshold gating + YAMNet `"Silence"` dominance check keeps live detection clean in quiet environments instead of hallucinating low-confidence thermal mic hiss.
+- **EMA Temporal Smoothing & Hallucination Filter:** Smooths transient frame jitter across consecutive windows (with fast impulse bypass for critical alarms/impacts) and filters esoteric non-urban microphone-noise artifacts (`Snake`, `Rattle`, `Hiss`, etc.).
+- **Real-Time Neural Classification (521 Classes):** On-device TensorFlow Lite inference (`yamnet.tflite`) with descending confidence ranking (`>= 25%` baseline) and critical sound detection (sirens, alarms, glass shatter, dog barking, speech, impacts).
 - **Instant Bilingual UI & Classifier Toggle (`🌐 EN / PT`):** Starts in **English** by default and lets you switch all screens **and all 521 YAMNet labels** between **English** and **Portuguese (PT-BR)** instantly from the top bar or Modes tab.
 - **16-Band Radix-2 FFT Spectrum Analyzer:** Live acoustic dashboard showing RMS dBFS, Peak dBFS, and dominant frequency (Hz) from `30 Hz` to `8 kHz`.
-- **Acoustic Learning Studio:** Record a 2-second sample to teach HeardWord any custom household/workplace sound (keys, doorbell, pet, machine hum) using cosine similarity matching.
+- **Acoustic Learning Studio:** Record a 2-second sample (with automatic highest-energy 1-second slice selection) to teach HeardWord any custom household/workplace sound using cosine similarity matching.
 - **Git / GitHub Community Sound Sharing:**
   - **Export / Import JSON:** Copy or paste `heardword-sound-pack/v1` profiles locally.
   - **🚀 Submit Sound Pack to GitHub:** Automatically copies your trained sound JSON and opens the GitHub submission template so contributors can grow the global catalog.
   - **☁️ Sync Vault from GitHub:** Pulls `community_sounds/community_sound_vault.json` directly from the `main` branch into your device.
-- **Minimal Permissions:** Uses only microphone/foreground audio permissions (`RECORD_AUDIO`, `FOREGROUND_SERVICE_MICROPHONE`, `POST_NOTIFICATIONS`, `VIBRATE`, `WAKE_LOCK`) plus `INTERNET` strictly for the optional GitHub Sound Vault sync. *(All Sonar / Bluetooth / Location / Wi-Fi permissions were completely removed during separation).*
+- **Minimal Permissions & Signed Release Build:** Uses only microphone/foreground audio permissions (`RECORD_AUDIO`, `FOREGROUND_SERVICE_MICROPHONE`, `POST_NOTIFICATIONS`, `VIBRATE`, `WAKE_LOCK`) plus `INTERNET` strictly for the optional GitHub Sound Vault sync. *(All Sonar / Bluetooth / Location / Wi-Fi permissions were completely removed during separation).* See [`CHANGELOG.md`](CHANGELOG.md) for full release notes.
 
 ---
 
@@ -132,6 +134,7 @@ HeardWord/
 ├── assets/heardword_banner.svg
 ├── community_sounds/
 │   └── community_sound_vault.json    # Shared community acoustic embeddings
+├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── LICENSE                           # MIT License
 └── README.md

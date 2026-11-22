@@ -25,6 +25,25 @@ class YamnetClassifier(private val context: Context) {
     @Volatile
     var language: String = "EN"
 
+    private val emaScores = FloatArray(521)
+    private var silenceClassIndex: Int = 494
+    private val criticalIndices = HashSet<Int>()
+
+    // Índices base-0 do AudioSet/YAMNet propensos a alucinação por ruído térmico/ambiente
+    private val blockedClassIndices: Set<Int> = buildSet {
+        add(77) // Purr
+        add(79) // Hiss
+        for (i in 81..105) add(i)  // Livestock, farm animals, wild animals, roar
+        for (i in 118..120) add(i) // Rodents, mouse, patter
+        for (i in 127..131) add(i) // Frog, Croak, Snake, Rattle, Whale
+        for (i in 205..209) add(i) // Bagpipes, Didgeridoo, Shofar, Theremin, Singing bowl
+        add(279) // Wind noise (microphone)
+        add(290) // Steam
+        add(451) // Sonar
+        add(452) // Arrow
+        for (i in 494..516) add(i) // Silence, test tones, room tags, static, white/pink noise
+    }
+
     private val criticalKeywords = setOf(
         // English
         "siren", "alarm", "glass", "shatter", "gunshot", "explosion",
@@ -88,9 +107,41 @@ class YamnetClassifier(private val context: Context) {
             classNamesPt.clear()
             for (i in 0 until 521) classNamesPt.add("Som #$i")
         }
+
+        silenceClassIndex = classNamesEn.indexOfFirst { it.equals("Silence", ignoreCase = true) }
+            .let { if (it >= 0) it else 494 }
+
+        criticalIndices.clear()
+        for (i in 0 until 521) {
+            if (i in blockedClassIndices) continue
+            val enName = classNamesEn.getOrNull(i) ?: ""
+            val ptName = classNamesPt.getOrNull(i) ?: ""
+            if (criticalKeywords.any { kw ->
+                    enName.contains(kw, ignoreCase = true) || ptName.contains(kw, ignoreCase = true)
+                }
+            ) {
+                criticalIndices.add(i)
+            }
+        }
     }
 
-    fun classify(samples: FloatArray, minConfidence: Float = 0.08f): Pair<List<DetectedSound>, FloatArray?> {
+    fun resetSmoothing() {
+        emaScores.fill(0.0f)
+    }
+
+    private fun decayEma(factor: Float = 0.4f) {
+        for (i in emaScores.indices) {
+            emaScores[i] *= factor
+        }
+    }
+
+    fun classify(
+        samples: FloatArray,
+        minConfidence: Float = 0.22f,
+        rmsDb: Float = 0.0f,
+        thresholdDb: Float = -60.0f,
+        isStudioCapture: Boolean = false
+    ): Pair<List<DetectedSound>, FloatArray?> {
         val interp = interpreter ?: run {
             Log.w("YamnetClassifier", "TFLite interpreter is null")
             return Pair(emptyList(), null)
@@ -115,39 +166,73 @@ class YamnetClassifier(private val context: Context) {
             return Pair(emptyList(), null)
         }
 
-        val scores = outputScores[0]
+        val rawScores = outputScores[0]
+        if (isStudioCapture) {
+            return Pair(emptyList(), rawScores)
+        }
+
         val results = mutableListOf<DetectedSound>()
 
         // 1. Custom learned acoustic profiles (521-dim cosine similarity)
-        synchronized(customSounds) {
-            for (custom in customSounds) {
-                val sim = cosineSimilarity(scores, custom.embedding)
-                if (sim >= 0.70f) {
-                    results.add(
-                        DetectedSound(
-                            name = custom.name,
-                            confidence = sim,
-                            isCritical = true,
-                            isCustom = true
+        if (rmsDb >= thresholdDb - 4.0f) {
+            synchronized(customSounds) {
+                for (custom in customSounds) {
+                    val sim = cosineSimilarity(rawScores, custom.embedding)
+                    if (sim >= 0.76f) {
+                        results.add(
+                            DetectedSound(
+                                name = custom.name,
+                                confidence = sim,
+                                isCritical = true,
+                                isCustom = true
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
 
-        // 2. Top YAMNet classes in active language
+        // 2. Acoustic Noise Gate: se abaixo do limiar de dB configurado, decair EMA e silenciar palpites
+        if (rmsDb < thresholdDb) {
+            decayEma(0.4f)
+            return Pair(results.sortedByDescending { it.confidence }, rawScores)
+        }
+
+        // 3. Neural Silence Gate: se YAMNet vê silêncio dominante e nenhum som crítico/custom forte surgiu
+        val silenceScore = if (silenceClassIndex in rawScores.indices) rawScores[silenceClassIndex] else 0.0f
+        val hasStrongCriticalRaw = criticalIndices.any { idx -> rawScores[idx] >= 0.35f }
+        if (silenceScore >= 0.45f && !hasStrongCriticalRaw && results.isEmpty()) {
+            decayEma(0.4f)
+            return Pair(emptyList(), rawScores)
+        }
+
+        // 4. Suavização temporal (EMA) com resposta rápida para eventos críticos impulsivos
+        for (i in 0 until 521) {
+            if (i in blockedClassIndices) {
+                emaScores[i] = 0.0f
+            } else {
+                val smoothed = 0.55f * rawScores[i] + 0.45f * emaScores[i]
+                emaScores[i] = if (i in criticalIndices) {
+                    maxOf(rawScores[i] * 0.85f, smoothed)
+                } else {
+                    smoothed
+                }
+            }
+        }
+
+        // 5. Top YAMNet classes filtradas no idioma ativo
         val activeLabels = if (language == "PT") classNamesPt else classNamesEn
-        val indexed = scores.indices.map { it to scores[it] }
-            .sortedByDescending { it.second }
+        val indexed = emaScores.indices
+            .filter { it !in blockedClassIndices }
+            .sortedByDescending { emaScores[it] }
             .take(6)
 
-        for ((idx, score) in indexed) {
-            if (idx < activeLabels.size && score >= minConfidence) {
+        for (idx in indexed) {
+            val score = emaScores[idx]
+            val isCrit = idx in criticalIndices
+            val requiredConf = if (isCrit) minOf(minConfidence, 0.18f) else minConfidence
+            if (idx < activeLabels.size && score >= requiredConf) {
                 val label = activeLabels[idx]
-                if ((label.equals("Silence", ignoreCase = true) || label.equals("Silêncio", ignoreCase = true)) && results.isNotEmpty()) {
-                    continue
-                }
-                val isCrit = criticalKeywords.any { label.contains(it, ignoreCase = true) }
                 results.add(
                     DetectedSound(
                         name = label,
@@ -160,7 +245,7 @@ class YamnetClassifier(private val context: Context) {
         }
 
         val sortedDesc = results.distinctBy { it.name }.sortedByDescending { it.confidence }
-        return Pair(sortedDesc, scores)
+        return Pair(sortedDesc, rawScores)
     }
 
     fun addCustomSound(name: String, embedding: FloatArray, sampleCountOverride: Int? = null) {

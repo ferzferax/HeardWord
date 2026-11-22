@@ -70,7 +70,16 @@ class AudioMonitorRepository private constructor(private val context: Context) {
         } else {
             if (lang == "PT") "Parado" else "Stopped"
         }
-        _state.update { it.copy(isRunning = running, statusMessage = resolvedStatus) }
+        if (!running) {
+            classifier.resetSmoothing()
+        }
+        _state.update { current ->
+            current.copy(
+                isRunning = running,
+                statusMessage = resolvedStatus,
+                topSounds = if (running) current.topSounds else emptyList()
+            )
+        }
     }
 
     fun setMode(mode: MonitoringMode) {
@@ -91,14 +100,23 @@ class AudioMonitorRepository private constructor(private val context: Context) {
 
     fun updateMetrics(metrics: AcousticMetrics, sounds: List<DetectedSound>) {
         val currentState = _state.value
-        val topSound = sounds.firstOrNull()
-        val hasCritical = sounds.any { it.isCritical && it.confidence > 0.30f }
         val isOverThreshold = metrics.rmsDb >= currentState.thresholdDb
+
+        val validSounds = sounds.filter { sound ->
+            val meetsConfidence = sound.confidence >= 0.25f
+            val meetsGate = isOverThreshold ||
+                (sound.isCustom && sound.confidence >= 0.78f) ||
+                (sound.isCritical && metrics.rmsDb >= currentState.thresholdDb - 3.0f)
+            meetsConfidence && meetsGate
+        }
+
+        val topSound = validSounds.firstOrNull()
+        val hasCritical = validSounds.any { it.isCritical && it.confidence > 0.30f }
 
         var updatedHistory = currentState.soundHistory
         val now = System.currentTimeMillis()
 
-        if (topSound != null && (isOverThreshold || hasCritical || topSound.confidence >= 0.25f)) {
+        if (topSound != null) {
             val isDuplicate = (topSound.name == lastSoundLoggedName && (now - lastSoundLoggedTime) < 2500)
             val isSilence = topSound.name.equals("Silence", ignoreCase = true) ||
                 topSound.name.equals("Silêncio", ignoreCase = true)
@@ -127,7 +145,7 @@ class AudioMonitorRepository private constructor(private val context: Context) {
         _state.update {
             it.copy(
                 currentMetrics = metrics,
-                topSounds = sounds,
+                topSounds = validSounds,
                 soundHistory = updatedHistory
             )
         }

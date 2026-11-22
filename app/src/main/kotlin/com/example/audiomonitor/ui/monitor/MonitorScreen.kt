@@ -146,8 +146,10 @@ fun MonitorScreen(
                     ) {
                         Text(
                             text = when {
-                                state.isRunning && isEn -> "Listening to environment... waiting for audio..."
-                                state.isRunning -> "Escutando ambiente... aguardando sons..."
+                                state.isRunning && isEn ->
+                                    "Quiet environment (below ${state.thresholdDb.toInt()} dBFS threshold) — waiting for sounds..."
+                                state.isRunning ->
+                                    "Ambiente silencioso (abaixo do limiar de ${state.thresholdDb.toInt()} dBFS) — aguardando sons..."
                                 isEn -> "Tap the button above to Start"
                                 else -> "Toque no botão acima para Iniciar"
                             },
@@ -669,7 +671,7 @@ data class AlertVisualData(
 )
 
 fun detectVisualAlert(sound: DetectedSound?, isEn: Boolean): AlertVisualData? {
-    if (sound == null || sound.confidence < 0.12f) return null
+    if (sound == null || sound.confidence < 0.28f) return null
     val name = sound.name.lowercase()
 
     return when {

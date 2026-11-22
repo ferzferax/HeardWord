@@ -11,8 +11,8 @@ android {
     applicationId = "com.ferzferax.heardword"
     minSdk = 26
     targetSdk = 34
-    versionCode = 1
-    versionName = "0.1.0-alpha"
+    versionCode = 2
+    versionName = "0.2.0-alpha"
   }
 
   buildTypes {
@@ -33,6 +33,9 @@ android {
   }
 
   packaging {
+    jniLibs {
+      useLegacyPackaging = true
+    }
     resources {
       excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
@@ -66,6 +69,7 @@ dependencies {
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.compose.material3)
   implementation(libs.androidx.compose.material.icons.extended)
+  implementation("androidx.graphics:graphics-path:1.0.1")
 
   // TensorFlow Lite
   implementation(libs.tensorflow.lite)

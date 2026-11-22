@@ -104,10 +104,15 @@ class AudioMonitorService : Service() {
     }
 
     private fun createAudioRecord(sampleRate: Int, channelConfig: Int, audioFormat: Int, bufferSize: Int): AudioRecord? {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        val sources = listOf(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.MIC
+        )
+
+        for (source in sources) {
             try {
                 val rec = AudioRecord(
-                    MediaRecorder.AudioSource.UNPROCESSED,
+                    source,
                     sampleRate,
                     channelConfig,
                     audioFormat,
@@ -118,23 +123,10 @@ class AudioMonitorService : Service() {
                 }
                 rec.release()
             } catch (e: Exception) {
-                Log.w("AudioMonitorService", "UNPROCESSED failed, falling back to MIC", e)
+                Log.w("AudioMonitorService", "AudioSource $source failed, trying fallback", e)
             }
         }
-
-        return try {
-            val rec = AudioRecord(
-                MediaRecorder.AudioSource.MIC,
-                sampleRate,
-                channelConfig,
-                audioFormat,
-                bufferSize
-            )
-            if (rec.state == AudioRecord.STATE_INITIALIZED) rec else null
-        } catch (e: Exception) {
-            Log.e("AudioMonitorService", "Failed to create AudioRecord", e)
-            null
-        }
+        return null
     }
 
     private fun startMonitoring() {
@@ -197,13 +189,22 @@ class AudioMonitorService : Service() {
 
     private fun processWindow(pcm: ShortArray, sampleRate: Int) {
         val (metrics, floats) = AudioProcessor.computeMetrics(pcm, sampleRate)
-        val (sounds, _) = repository.classifier.classify(floats)
+        val currentState = repository.state.value
+        val (sounds, _) = repository.classifier.classify(
+            samples = floats,
+            rmsDb = metrics.rmsDb,
+            thresholdDb = currentState.thresholdDb
+        )
         repository.updateMetrics(metrics, sounds)
 
-        val fallback = if (isEn()) "Ambient" else "Ambiente"
-        val topName = sounds.firstOrNull()?.name ?: fallback
-        val topConf = ((sounds.firstOrNull()?.confidence ?: 0.0f) * 100).toInt()
-        val notif = buildNotification(topName, "${metrics.rmsDb} dBFS ($topConf%)")
+        val notifTitle = if (sounds.isEmpty()) {
+            if (isEn()) "Quiet / Ambient" else "Silêncio / Ambiente"
+        } else {
+            val top = sounds.first()
+            val confPct = (top.confidence * 100).toInt()
+            "${top.name} ($confPct%)"
+        }
+        val notif = buildNotification(notifTitle, "${metrics.rmsDb} dBFS")
         notificationManager.notify(NOTIFICATION_ID, notif)
     }
 

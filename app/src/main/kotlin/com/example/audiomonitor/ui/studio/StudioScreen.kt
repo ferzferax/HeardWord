@@ -518,35 +518,74 @@ private suspend fun recordSampleAndGetEmbedding(repository: AudioMonitorReposito
         val sampleRate = 16000
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
         val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-        val bufferSize = 16000 * 2
+        val bufferSize = 16000 * 2 // 2 seconds
+        val targetLen = 15600
 
         var recorder: AudioRecord? = null
         try {
             val minBuf = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-            recorder = AudioRecord(
-                MediaRecorder.AudioSource.MIC,
-                sampleRate,
-                channelConfig,
-                audioFormat,
-                maxOf(minBuf, bufferSize * 2)
+            val sources = listOf(
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                MediaRecorder.AudioSource.MIC
             )
+            for (source in sources) {
+                val candidate = AudioRecord(
+                    source,
+                    sampleRate,
+                    channelConfig,
+                    audioFormat,
+                    maxOf(minBuf, bufferSize * 2)
+                )
+                if (candidate.state == AudioRecord.STATE_INITIALIZED) {
+                    recorder = candidate
+                    break
+                }
+                candidate.release()
+            }
 
-            if (recorder.state != AudioRecord.STATE_INITIALIZED) return@withContext null
+            val activeRecorder = recorder ?: return@withContext null
 
             val pcm = ShortArray(bufferSize)
-            recorder.startRecording()
+            activeRecorder.startRecording()
             var readTotal = 0
             while (readTotal < bufferSize) {
-                val r = recorder.read(pcm, readTotal, bufferSize - readTotal)
+                val r = activeRecorder.read(pcm, readTotal, bufferSize - readTotal)
                 if (r > 0) readTotal += r else break
             }
 
-            val floats = FloatArray(15600)
-            for (i in 0 until 15600) {
-                floats[i] = if (i < pcm.size) pcm[i] / 32768.0f else 0.0f
+            if (readTotal < targetLen) return@withContext null
+
+            // Select the 15600-sample (~1s) window with highest RMS energy inside the 2s recording
+            var bestStart = 0
+            var bestEnergy = -1.0
+            val step = 400
+            var start = 0
+            while (start + targetLen <= readTotal) {
+                var energy = 0.0
+                for (i in start until start + targetLen) {
+                    val v = pcm[i].toDouble()
+                    energy += v * v
+                }
+                if (energy > bestEnergy) {
+                    bestEnergy = energy
+                    bestStart = start
+                }
+                start += step
             }
 
-            val (_, embedding) = repository.classifier.classify(floats)
+            val floats = FloatArray(targetLen)
+            var mean = 0.0
+            for (i in 0 until targetLen) {
+                val s = pcm[bestStart + i] / 32768.0f
+                floats[i] = s
+                mean += s.toDouble()
+            }
+            val dc = (mean / targetLen).toFloat()
+            for (i in 0 until targetLen) {
+                floats[i] = (floats[i] - dc).coerceIn(-1.0f, 1.0f)
+            }
+
+            val (_, embedding) = repository.classifier.classify(floats, isStudioCapture = true)
             embedding
         } catch (_: Exception) {
             null
